@@ -1,1 +1,1 @@
-# ml_workshop
+# Machine Learning Workshop patch
