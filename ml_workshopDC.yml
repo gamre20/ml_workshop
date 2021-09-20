@@ -2,9 +2,7 @@ kind: DeploymentConfig
 apiVersion: apps.openshift.io/v1
 metadata:
   annotations:
-    kfctl.kubeflow.io/kfdef-instance: opendatahub.opendatahub-user1
   name: jupyterhub
-  namespace: opendatahub-user1
   labels:
     app: jupyterhub
     component.opendatahub.io/name: jupyterhub
