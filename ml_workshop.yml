@@ -1,0 +1,117 @@
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  annotations:
+    kfctl.kubeflow.io/kfdef-instance: opendatahub.opendatahub-user1
+  name: jupyterhub
+  namespace: opendatahub-user1
+  labels:
+    app: jupyterhub
+    component.opendatahub.io/name: jupyterhub
+    opendatahub.io/component: 'true'
+spec:
+  strategy:
+    type: Recreate
+    recreateParams:
+      timeoutSeconds: 1200
+    resources: {}
+    activeDeadlineSeconds: 21600
+  triggers:
+    - type: ConfigChange
+  replicas: 1
+  revisionHistoryLimit: 10
+  test: false
+  selector:
+    app: jupyterhub
+    deploymentconfig: jupyterhub
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: jupyterhub
+        component: web
+        component.opendatahub.io/name: jupyterhub
+        deploymentconfig: jupyterhub
+        opendatahub.io/component: 'true'
+      annotations:
+        alpha.image.policy.openshift.io/resolve-names: '*'
+        sidecar.istio.io/inject: 'true'
+    spec:
+      restartPolicy: Always
+      initContainers:
+        - name: wait-for-database
+          image: 'quay.io/odh-jupyterhub/jupyterhub-img:v0.1.5'
+          command:
+            - wait-for-database
+          env:
+            - name: JUPYTERHUB_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jupyterhub
+                  key: POSTGRESQL_PASSWORD
+            - name: JUPYTERHUB_DATABASE_HOST
+              value: jupyterhub-db
+          resources:
+            limits:
+              memory: 1Gi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+      serviceAccountName: jupyterhub-hub
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+      securityContext: {}
+      containers:
+        - resources:
+            limits:
+              memory: 1Gi
+          terminationMessagePath: /dev/termination-log
+          name: jupyterhub
+          env:
+            - name: JUPYTERHUB_SERVICE_NAME
+              value: jupyterhub
+            - name: JUPYTERHUB_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jupyterhub
+                  key: POSTGRESQL_PASSWORD
+            - name: JUPYTERHUB_DATABASE_HOST
+              value: jupyterhub-db
+            - name: JUPYTERHUB_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jupyterhub
+                  key: COOKIE_SECRET
+            - name: APP_SCRIPT
+              value: /opt/app-root/builder/run
+            - name: GPU_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: jupyterhub-cfg
+                  key: gpu_mode
+            - name: JUPYTERHUB_ADMIN_USERS
+              valueFrom:
+                configMapKeyRef:
+                  name: jupyterhub-cfg
+                  key: jupyterhub_admins
+            - name: SINGLEUSER_PVC_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: jupyterhub-cfg
+                  key: singleuser_pvc_size
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: config
+              mountPath: /opt/app-root/configs
+          terminationMessagePolicy: File
+          image: 'quay.io/odh-jupyterhub/jupyterhub-img:v0.1.5'
+      serviceAccount: jupyterhub-hub
+      volumes:
+        - name: config
+          configMap:
+            name: jupyterhub-cfg
+            defaultMode: 420
+      dnsPolicy: ClusterFirst
